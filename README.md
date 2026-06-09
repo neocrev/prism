@@ -1,8 +1,9 @@
-# prism
-
-[![npm](https://img.shields.io/npm/v/prism)](https://www.npmjs.com/package/prism) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-
-Full-screen terminal visualizer. Any text, animated with light.
+<p align="center">
+  <h1>prism</h1>
+  <p>Full-screen terminal visualizer. Any text, animated with light.</p>
+  <a href="https://www.npmjs.com/package/prism"><img src="https://img.shields.io/npm/v/prism" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+</p>
 
 <p align="center">
   <img src="demo.svg" alt="prism demo" width="600">
