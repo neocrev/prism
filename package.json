@@ -1,5 +1,5 @@
 {
-  "name": "prism",
+  "name": "@neocrev/prism",
   "version": "1.0.0",
   "description": "Paint your terminal with color — gradient text and smooth animations",
   "type": "module",
@@ -13,6 +13,7 @@
     "./banner": "./lib/banner.js"
   },
   "keywords": ["terminal", "color", "gradient", "rainbow", "animation", "cli", "text"],
+  "publishConfig": { "access": "public" },
   "license": "MIT",
   "engines": {
     "node": ">=18"

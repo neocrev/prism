@@ -1,7 +1,7 @@
 <p align="center">
   <h1>prism</h1>
   <p>Full-screen terminal visualizer. Any text, animated with light.</p>
-  <a href="https://www.npmjs.com/package/prism"><img src="https://img.shields.io/npm/v/prism" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/@neocrev/prism"><img src="https://img.shields.io/npm/v/@neocrev/prism" alt="npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
 </p>
 
@@ -12,9 +12,9 @@
 ## Install
 
 ```bash
-npm install prism
+npm install @neocrev/prism
 # or
-npx prism "hello world" --wave
+npx @neocrev/prism "hello world" --wave
 ```
 
 ---
@@ -41,14 +41,14 @@ Press any key to exit.
 | `--speed 2` | Speed multiplier |
 | `--preview` | Auto-exit after 5 seconds |
 
-Pipe from stdin works too: `echo "text" \| prism --drift`
+Pipe from stdin works too: `echo "text" \| npx @neocrev/prism --drift`
 
 ---
 
 ## Library
 
 ```js
-import { gradient, animate, banner } from 'prism';
+import { gradient, animate, banner } from '@neocrev/prism';
 
 // Static gradient
 console.log(gradient('Hello', { colors: ['#ff0066', '#00ccff'] }));
