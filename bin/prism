@@ -1,0 +1,86 @@
+#!/usr/bin/env node
+
+import { gradient, animate, effects, banner } from '../lib/index.js';
+
+const args = process.argv.slice(2);
+const flags = {};
+const positional = [];
+let preview;
+
+for (let i = 0; i < args.length; i++) {
+  const a = args[i];
+  if (a === '--rainbow') flags.rainbow = true;
+  else if (a === '--wave') flags.wave = true;
+  else if (a === '--shimmer') flags.shimmer = true;
+  else if (a === '--pulse') flags.pulse = true;
+  else if (a === '--typewriter') flags.typewriter = true;
+  else if (a === '--glitch') flags.glitch = true;
+  else if (a === '--big') flags.big = true;
+  else if (a === '--from' && args[i+1]) flags.from = args[++i];
+  else if (a === '--to' && args[i+1]) flags.to = args[++i];
+  else if (a === '--speed' && args[i+1]) flags.speed = parseFloat(args[++i]);
+  else if (a === '--preview') flags.preview = true;
+  else if (a.startsWith('--')) {}
+  else positional.push(a);
+}
+
+preview = flags.preview;
+
+let text;
+if (!process.stdin.isTTY) {
+  const chunks = [];
+  for await (const c of process.stdin) chunks.push(c);
+  text = Buffer.concat(chunks).toString('utf-8').trim();
+} else if (positional.length) {
+  text = positional.join(' ');
+} else {
+  text = 'prism';
+}
+
+const from = flags.from || '#ff0066';
+const to = flags.to || '#00ccff';
+const colors = [from, to];
+const speed = flags.speed || 1;
+
+const mode = flags.rainbow ? 'rainbow'
+  : flags.wave ? 'wave'
+  : flags.shimmer ? 'shimmer'
+  : flags.pulse ? 'pulse'
+  : flags.typewriter ? 'typewriter'
+  : flags.glitch ? 'glitch'
+  : null;
+
+if (mode) {
+  if (preview || process.stdout.isTTY) {
+    const txt = flags.big ? banner(text) : text;
+    const stop = animate(txt, {
+      mode,
+      colors,
+      speed,
+      fps: 30,
+    });
+    let running = true;
+    const frame = () => {
+      if (!running) return;
+      process.stdout.write('\x1b[2J\x1b[H');
+      process.stdout.write(stop.frame());
+      if (flags.preview) {
+        setTimeout(() => { running = false; }, 5000);
+      }
+    };
+    setInterval(frame, 33);
+    process.on('SIGINT', () => { running = false; stop(); process.exit(0); });
+    if (flags.preview) setTimeout(() => process.exit(0), 5000);
+    // Keep alive
+    await new Promise(() => {});
+  } else {
+    // Non-TTY: print one frame
+    const txt = flags.big ? banner(text) : text;
+    const anim = animate(txt, { mode, colors, speed });
+    console.log(anim.frame());
+  }
+} else {
+  const txt = flags.big ? banner(text) : text;
+  const out = gradient(txt, { colors });
+  console.log(out);
+}

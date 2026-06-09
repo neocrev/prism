@@ -1,0 +1,20 @@
+{
+  "name": "prism",
+  "version": "1.0.0",
+  "description": "Paint your terminal with color — gradient text and smooth animations",
+  "type": "module",
+  "bin": {
+    "prism": "./bin/prism"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./gradient": "./lib/gradient.js",
+    "./animate": "./lib/animate.js",
+    "./banner": "./lib/banner.js"
+  },
+  "keywords": ["terminal", "color", "gradient", "rainbow", "animation", "cli", "text"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
