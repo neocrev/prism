@@ -1,30 +1,26 @@
 #!/usr/bin/env node
 
-import { gradient, animate, effects, banner } from '../lib/index.js';
+import { gradient, animate, banner } from '../lib/index.js';
 
 const args = process.argv.slice(2);
 const flags = {};
 const positional = [];
-let preview;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
-  if (a === '--rainbow') flags.rainbow = true;
-  else if (a === '--wave') flags.wave = true;
-  else if (a === '--shimmer') flags.shimmer = true;
-  else if (a === '--pulse') flags.pulse = true;
-  else if (a === '--typewriter') flags.typewriter = true;
-  else if (a === '--glitch') flags.glitch = true;
+  if (a === '--rainbow' || a === '--wave') flags.wave = true;
+  else if (a === '--drift') flags.drift = true;
+  else if (a === '--aurora') flags.aurora = true;
+  else if (a === '--fire') flags.fire = true;
+  else if (a === '--rain') flags.rain = true;
   else if (a === '--big') flags.big = true;
+  else if (a === '--preview') flags.preview = true;
   else if (a === '--from' && args[i+1]) flags.from = args[++i];
   else if (a === '--to' && args[i+1]) flags.to = args[++i];
   else if (a === '--speed' && args[i+1]) flags.speed = parseFloat(args[++i]);
-  else if (a === '--preview') flags.preview = true;
   else if (a.startsWith('--')) {}
   else positional.push(a);
 }
-
-preview = flags.preview;
 
 let text;
 if (!process.stdin.isTTY) {
@@ -42,45 +38,206 @@ const to = flags.to || '#00ccff';
 const colors = [from, to];
 const speed = flags.speed || 1;
 
-const mode = flags.rainbow ? 'rainbow'
-  : flags.wave ? 'wave'
-  : flags.shimmer ? 'shimmer'
-  : flags.pulse ? 'pulse'
-  : flags.typewriter ? 'typewriter'
-  : flags.glitch ? 'glitch'
-  : null;
+if (flags.big) text = banner(text);
 
-if (mode) {
-  if (preview || process.stdout.isTTY) {
-    const txt = flags.big ? banner(text) : text;
-    const stop = animate(txt, {
-      mode,
-      colors,
-      speed,
-      fps: 30,
-    });
-    let running = true;
-    const frame = () => {
-      if (!running) return;
-      process.stdout.write('\x1b[2J\x1b[H');
-      process.stdout.write(stop.frame());
-      if (flags.preview) {
-        setTimeout(() => { running = false; }, 5000);
-      }
-    };
-    setInterval(frame, 33);
-    process.on('SIGINT', () => { running = false; stop(); process.exit(0); });
-    if (flags.preview) setTimeout(() => process.exit(0), 5000);
-    // Keep alive
-    await new Promise(() => {});
-  } else {
-    // Non-TTY: print one frame
-    const txt = flags.big ? banner(text) : text;
-    const anim = animate(txt, { mode, colors, speed });
-    console.log(anim.frame());
-  }
-} else {
-  const txt = flags.big ? banner(text) : text;
-  const out = gradient(txt, { colors });
-  console.log(out);
+const mode = flags.wave ? 'wave'
+  : flags.drift ? 'drift'
+  : flags.aurora ? 'aurora'
+  : flags.fire ? 'fire'
+  : flags.rain ? 'rain'
+  : 'wave';
+
+const HIDE = '\x1b[?25l';
+const SHOW = '\x1b[?25h';
+const HOME = '\x1b[H';
+const CLEAR = '\x1b[2J';
+
+let running = true;
+let W = process.stdout.columns || 80;
+let H = process.stdout.rows || 24;
+let time = 0;
+const fps = 30;
+
+function hex2rgb(h) {
+  return { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) };
 }
+
+function lerpC(c1, c2, t) {
+  return { r: c1.r + (c2.r - c1.r) * t, g: c1.g + (c2.g - c1.g) * t, b: c1.b + (c2.b - c1.b) * t };
+}
+
+function ansiRGB(r, g, b) {
+  return `\x1b[38;2;${Math.round(r)};${Math.round(g)};${Math.round(b)}m`;
+}
+
+const stops = colors.map(hex2rgb);
+const RESET = '\x1b[0m';
+
+function colorAt(t) {
+  const seg = t < 0 ? 0 : t > 1 ? 1 : t;
+  const idx = Math.min(Math.floor(seg * (stops.length - 1)), stops.length - 2);
+  const frac = seg * (stops.length - 1) - idx;
+  const c = lerpC(stops[idx], stops[Math.min(idx + 1, stops.length - 1)], frac);
+  return ansiRGB(c.r, c.g, c.b);
+}
+
+function renderWave() {
+  const rows = text.split('\n');
+  let buf = HOME;
+  for (let r = 0; r < rows.length; r++) {
+    const wave = Math.sin(time * 1.5 * speed + r * 0.4) * 0.3;
+    const indent = Math.round((W - rows[r].length) / 2);
+    for (let c = 0; c < rows[r].length; c++) {
+      const x = indent + c + Math.round(wave * 4);
+      const y = Math.round(H / 2 - rows.length / 2 + r);
+      if (x >= 0 && x < W && y >= 0 && y < H) {
+        const colorT = (Math.sin(time * speed + r * 0.2 + c * 0.08) + 1) / 2;
+        buf += `\x1b[${y+1};${x+1}H${colorAt(colorT)}${rows[r][c]}${RESET}`;
+      }
+    }
+  }
+  return buf;
+}
+
+const state = {};
+function renderDrift() {
+  const flat = text.replace(/\n/g, ' ');
+  if (!state.driftP || state.driftT !== text) {
+    state.driftP = [];
+    state.driftT = text;
+    for (let i = 0; i < flat.length; i++) {
+      state.driftP.push({
+        ch: flat[i],
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: (Math.random() - 0.5) * 0.2,
+        vy: (Math.random() - 0.5) * 0.2 + 0.05,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+  let buf = HOME;
+  for (const p of state.driftP) {
+    p.x += p.vx + Math.sin(time * 0.5 + p.phase) * 0.15;
+    p.y += p.vy + Math.cos(time * 0.3 + p.phase) * 0.1;
+    if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+    if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+    const xi = Math.round(p.x);
+    const yi = Math.round(p.y);
+    if (xi >= 0 && xi < W && yi >= 0 && yi < H) {
+      const colorT = (Math.sin(time * speed * 0.5 + p.phase) + 1) / 2;
+      buf += `\x1b[${yi+1};${xi+1}H${colorAt(colorT)}${p.ch}${RESET}`;
+    }
+  }
+  return buf;
+}
+
+function renderAurora() {
+  const rows = text.split('\n');
+  let buf = HOME;
+  for (let r = 0; r < rows.length; r++) {
+    const indent = Math.round((W - rows[r].length) / 2);
+    for (let c = 0; c < rows[r].length; c++) {
+      const x = indent + c;
+      const y = Math.round(H / 2 - rows.length / 2 + r);
+      if (x >= 0 && x < W && y >= 0 && y < H) {
+        const wave = Math.sin(time * 0.3 * speed + r * 0.5 + c * 0.1) * 0.5 + 0.5;
+        const glow = Math.sin(time * 0.2 * speed + c * 0.05) * 0.3 + 0.7;
+        const colorT = wave * 0.8 + 0.1;
+        const c1 = lerpC(stops[Math.max(0, stops.length-2)], stops[stops.length-1], colorT);
+        const bright = { r: c1.r * glow, g: c1.g * glow, b: c1.b * glow };
+        buf += `\x1b[${y+1};${x+1}H${ansiRGB(bright.r, bright.g, bright.b)}${rows[r][c]}${RESET}`;
+      }
+    }
+  }
+  return buf;
+}
+
+function renderFire() {
+  const rows = text.split('\n');
+  let buf = HOME;
+  for (let r = 0; r < rows.length; r++) {
+    const indent = Math.round((W - rows[r].length) / 2);
+    for (let c = 0; c < rows[r].length; c++) {
+      const x = indent + c;
+      const y = Math.round(H / 2 - rows.length / 2 + r);
+      if (x >= 0 && x < W && y >= 0 && y < H) {
+        const flicker = Math.random() * 0.3 + 0.7;
+        const heat = 1 - (r / rows.length) * 0.5 + Math.sin(time * 5 * speed + c * 0.5) * 0.1;
+        const rCol = Math.min(255, 255 * flicker);
+        const gCol = Math.min(255, 180 * flicker * (0.5 + heat * 0.5));
+        const bCol = Math.min(255, 60 * flicker * heat);
+        buf += `\x1b[${y+1};${x+1}H${ansiRGB(rCol, gCol, bCol)}${rows[r][c]}${RESET}`;
+      }
+    }
+  }
+  return buf;
+}
+
+function renderRain() {
+  const rows = text.split('\n');
+  if (!state.rainDrops || state.rainT !== text) {
+    state.rainDrops = [];
+    state.rainT = text;
+    const flat = text.replace(/\n/g, ' ');
+    for (let i = 0; i < flat.length; i++) {
+      state.rainDrops.push({
+        ch: flat[i],
+        x: Math.random() * W,
+        y: Math.random() * H,
+        speed: 0.3 + Math.random() * 0.7,
+        phase: Math.random() * 100,
+      });
+    }
+    state.rainDrops.sort((a, b) => a.phase - b.phase);
+  }
+  let buf = HOME;
+  for (let r = 0; r < rows.length; r++) {
+    const indent = Math.round((W - rows[r].length) / 2);
+    for (let c = 0; c < rows[r].length; c++) {
+      const x = indent + c;
+      const y = Math.round(H / 2 - rows.length / 2 + r);
+      if (x >= 0 && x < W && y >= 0 && y < H) {
+        buf += `\x1b[${y+1};${x+1}H\x1b[38;2;60;60;80m${rows[r][c]}${RESET}`;
+      }
+    }
+  }
+  for (const d of state.rainDrops) {
+    d.y += d.speed * speed;
+    if (d.y > H + 2) { d.y = -2; d.x = Math.random() * W; }
+    const yi = Math.round(d.y);
+    const xi = Math.round(d.x);
+    if (xi >= 0 && xi < W && yi >= 0 && yi < H) {
+      const colorT = Math.min(1, (H - yi) / H);
+      buf += `\x1b[${yi+1};${xi+1}H${colorAt(colorT)}${d.ch}${RESET}`;
+    }
+  }
+  return buf;
+}
+
+const renderers = { wave: renderWave, drift: renderDrift, aurora: renderAurora, fire: renderFire, rain: renderRain };
+const render = renderers[mode] || renderWave;
+
+function frame() {
+  if (!running) return;
+  time += 1 / fps;
+  process.stdout.write(render());
+}
+
+process.stdout.write(`${HIDE}${CLEAR}`);
+process.stdin.setRawMode && process.stdin.setRawMode(true);
+process.stdin.on('data', () => { cleanup(); });
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
+process.stdout.on('resize', () => { W = process.stdout.columns || 80; H = process.stdout.rows || 24; });
+
+function cleanup() {
+  running = false;
+  process.stdout.write(`${SHOW}${CLEAR}${HOME}`);
+  process.exit(0);
+}
+
+if (flags.preview) setTimeout(cleanup, 5000);
+
+setInterval(frame, Math.round(1000 / fps));
+await new Promise(() => {});
